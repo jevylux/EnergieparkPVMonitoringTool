@@ -1,0 +1,34 @@
+# Email configuration for alerts
+email:
+  smtp_server: "<your-smtp-server>" # or your SMTP server
+  smtp_port: 587
+  sender_email: "marc@example.com"
+  sender_password: "yoursecretmailpassword" # Use app-specific password for Gmail
+  recipient_email: # Where to send alerts
+    - mail: "marc@example.com"
+    - mail: "marc2@example.com"
+pod:
+  - id: LU0000010<theremainingof your POD>
+    address: "Musterstraße 5, Beispielstadt"
+    Latitude: 49.750000
+    Longitude: 7.370000
+    price_per_kWh: 0.25
+    peak_power: 100
+  - id: LU0000010<theremainingof your POD2>
+    address: "Musterstraße 6, Beispielstadt"
+    Latitude: 49.770000
+    Longitude: 7.390000
+    price_per_kWh: 0.25
+    peak_power: 100
+
+obis_codes:
+  - 1-1:2.29.0
+
+leneda:
+  url: "https://api.leneda.lu"
+  energyId:
+    header: "X-ENERGY-ID"
+    value: "<your-Energy-Id>"
+  apiKey:
+    header: "X-API-KEY"
+    value: "<your-API-key"
