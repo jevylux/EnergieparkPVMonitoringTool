@@ -42,7 +42,7 @@ ENV PYTHONUNBUFFERED=1
 # Set up cron jobs directly in the image
 # (minutes hours day_of_month month day_of_week )
 
-RUN echo "0 6 * * * /usr/local/bin/python /app/energy_data_collector.py >> /var/log/energy_data_collector.log 2>&1" > /etc/cron.d/all_crons && \
+RUN echo "0 6 * * * cd /app && /usr/local/bin/python /app/energy_data_collector.py >> /var/log/energy_data_collector.log 2>&1" > /etc/cron.d/all_crons && \
     chmod 0644 /etc/cron.d/all_crons && \
     crontab /etc/cron.d/all_crons
 

@@ -18,6 +18,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+#datapath="/app/data/"
+datapath="./data/"
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -35,13 +38,13 @@ class EnergyDataCollector:
     # Performance threshold (50% of expected)
     PERFORMANCE_THRESHOLD = 0.50
     
-    def __init__(self, config_path: str = "configuration_energiepark.yaml"):
+    def __init__(self, config_path: str = datapath+"configuration_energiepark.yaml"):
         """Initialize the collector with configuration."""
         self.config = self._load_config(config_path)
         # Use the URL from config
         base_url = self.config.get('leneda', {}).get('url', 'https://api.leneda.lu')
         self.api_base_url = f"{base_url}/api/metering-points"
-        self.db_path = 'energy_data_energiepark.db'
+        self.db_path = datapath+"energy_data_energiepark.db"
         self._init_database()
     
     def _load_config(self, config_path: str) -> Dict:
@@ -542,9 +545,6 @@ class EnergyDataCollector:
         Args:
             alerts: List of alert dictionaries
         """
-        if not alerts:
-            logger.info("No alerts to send")
-            return
         
         # Get email configuration
         email_config = self.config.get('email', {})
@@ -576,82 +576,111 @@ class EnergyDataCollector:
             logger.error("Email configuration incomplete. Required: sender_email, sender_password, recipient_email")
             logger.debug(f"Config values - sender: {bool(sender_email)}, password: {bool(sender_password)}, recipients: {len(recipient_emails)}")
             return
-        
-        # Create email content
-        subject = f"⚠️ Solar Performance Alert - {len(alerts)} Installation(s) Underperforming"
-        
-        # Group alerts by date
-        alerts_by_date = {}
-        for alert in alerts:
-            date = alert['date']
-            if date not in alerts_by_date:
-                alerts_by_date[date] = []
-            alerts_by_date[date].append(alert)
-        
-        # Build HTML email
-        html_body = f"""
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; }}
-                h2 {{ color: #d9534f; }}
-                table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
-                th {{ background-color: #d9534f; color: white; padding: 10px; text-align: left; }}
-                td {{ border: 1px solid #ddd; padding: 8px; }}
-                tr:nth-child(even) {{ background-color: #f2f2f2; }}
-                .warning {{ color: #d9534f; font-weight: bold; }}
-                .info {{ color: #666; font-size: 0.9em; }}
-            </style>
-        </head>
-        <body>
-            <h2>⚠️ Solar Performance Alert</h2>
-            <p>The following installations are performing below 50% of expected output:</p>
-        """
-        
-        for date in sorted(alerts_by_date.keys(), reverse=True):
-            date_alerts = alerts_by_date[date]
-            html_body += f"""
-            <h3>Date: {date}</h3>
-            <table>
-                <tr>
-                    <th>Installation</th>
-                    <th>Actual (kWh)</th>
-                    <th>Expected (kWh)</th>
-                    <th>Performance</th>
-                    <th>Weather</th>
-                </tr>
+        if not alerts:
+            logger.info("No alerts to send, sending notification mail")
+            subject = "✅ Solar Performance Check - All Installations Performing Well"
+            html_body = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; }}
+                    h2 {{ color: #d9534f; }}
+                    table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                    th {{ background-color: #d9534f; color: white; padding: 10px; text-align: left; }}
+                    td {{ border: 1px solid #ddd; padding: 8px; }}
+                    tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                    .warning {{ color: #d9534f; font-weight: bold; }}
+                    .info {{ color: #666; font-size: 0.9em; }}
+                </style>
+            </head>
+            <body>
+                <h2>✅ Solar Performance Check</h2>
+                <p>All installations are performing well.</p>
+                        </body>
+            </html>
+            """
+
+        else:
+            # Create email content
+            subject = f"⚠️ Solar Performance Alert - {len(alerts)} Installation(s) Underperforming"
+            
+            # Group alerts by date
+            alerts_by_date = {}
+            for alert in alerts:
+                date = alert['date']
+                if date not in alerts_by_date:
+                    alerts_by_date[date] = []
+                alerts_by_date[date].append(alert)
+            
+            # Build HTML email
+            html_body = f"""
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; }}
+                    h2 {{ color: #d9534f; }}
+                    table {{ border-collapse: collapse; width: 100%; margin: 20px 0; }}
+                    th {{ background-color: #d9534f; color: white; padding: 10px; text-align: left; }}
+                    td {{ border: 1px solid #ddd; padding: 8px; }}
+                    tr:nth-child(even) {{ background-color: #f2f2f2; }}
+                    .warning {{ color: #d9534f; font-weight: bold; }}
+                    .info {{ color: #666; font-size: 0.9em; }}
+                </style>
+            </head>
+            <body>
+                <h2>⚠️ Solar Performance Alert</h2>
+                <p>The following installations are performing below 50% of expected output:</p>
             """
             
-            for alert in date_alerts:
-                performance_pct = alert['performance_ratio'] * 100
+            for date in sorted(alerts_by_date.keys(), reverse=True):
+                date_alerts = alerts_by_date[date]
                 html_body += f"""
-                <tr>
-                    <td><strong>{alert['pod_name']}</strong><br/>
-                        <span class="info">{alert['pod_code']} / {alert['obis_code']}</span></td>
-                    <td>{alert['actual_kwh']:.2f}</td>
-                    <td>{alert['expected_kwh']:.2f}</td>
-                    <td class="warning">{performance_pct:.1f}%</td>
-                    <td>{alert['sun_hours']:.1f}h sun<br/>
-                        {alert['solar_irradiance']:.2f} kWh/m²</td>
-                </tr>
+                <h3>Date: {date}</h3>
+                <table>
+                    <tr>
+                        <th>Installation</th>
+                        <th>Actual (kWh)</th>
+                        <th>Expected (kWh)</th>
+                        <th>Performance</th>
+                        <th>Weather</th>
+                    </tr>
                 """
+                
+                for alert in date_alerts:
+                    performance_pct = alert['performance_ratio'] * 100
+                    html_body += f"""
+                    <tr>
+                        <td><strong>{alert['pod_name']}</strong><br/>
+                            <span class="info">{alert['pod_code']} / {alert['obis_code']}</span></td>
+                        <td>{alert['actual_kwh']:.2f}</td>
+                        <td>{alert['expected_kwh']:.2f}</td>
+                        <td class="warning">{performance_pct:.1f}%</td>
+                        <td>{alert['sun_hours']:.1f}h sun<br/>
+                            {alert['solar_irradiance']:.2f} kWh/m²</td>
+                    </tr>
+                    """
+                
+                html_body += "</table>"
             
-            html_body += "</table>"
-        
-        html_body += """
-            <hr/>
-            <p class="info">
-                <strong>Note:</strong> This alert will not be sent again for these installations 
-                until the alerts are manually reset in the system.
-            </p>
-            <p class="info">
-                To acknowledge these alerts and prevent future notifications, 
-                use the acknowledge_alerts() method.
-            </p>
-        </body>
-        </html>
-        """
-        
+            html_body += """
+                <hr/>
+                <p class="info">
+                    <strong>Note:</strong> This alert will not be sent again for these installations 
+                    until the alerts are manually reset in the system.
+                </p>
+                <p class="info">
+                    To acknowledge these alerts and prevent future notifications, 
+                    use the acknowledge_alerts() method.
+                </p>
+                <p class="info">
+                    If you are on Marc's local network, you may use this url to manage Alerts: <br>
+                    <a href="http://192.168.2.99:8097/">Energy Alert Management</a>
+                </p>
+
+            </body>
+            </html>
+            """
+        print("sending mail")    
         # Create message
         message = MIMEMultipart('alternative')
         message['Subject'] = subject
@@ -735,7 +764,7 @@ def main():
             collector.send_alert_email(pending_alerts)
         else:
             logger.info("No pending alerts")
-        
+            collector.send_alert_email(pending_alerts)
         # Print summary
         print("\n" + "="*90)
         print("SUMMARY - Last 7 Days")
